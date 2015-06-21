@@ -1,5 +1,6 @@
 package de.tudarmstadt.informatik.bp.bonfirechat.network;
 
+import android.bluetooth.BluetoothClass;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -9,12 +10,14 @@ import android.net.wifi.p2p.WifiP2pDevice;
 import android.net.wifi.p2p.WifiP2pDeviceList;
 import android.net.wifi.p2p.WifiP2pInfo;
 import android.net.wifi.p2p.WifiP2pManager;
+import android.os.Handler;
 import android.util.Log;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.Collection;
@@ -22,6 +25,8 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.FutureTask;
+
+import de.tudarmstadt.informatik.bp.bonfirechat.models.Envelope;
 
 
 /**
@@ -34,6 +39,10 @@ public class WifiReceiver extends BroadcastReceiver {
     private WifiProtocol mProtocol;
 
     public static WifiP2pInfo info;
+    public Collection<WifiP2pDevice> mDevList;
+    public InetSocketAddress communicationPartner;
+    public static Socket socket;
+
 
 
     public WifiReceiver(WifiP2pManager manager, WifiP2pManager.Channel channel, WifiProtocol mProtocol) {
@@ -41,6 +50,7 @@ public class WifiReceiver extends BroadcastReceiver {
         this.mManager = manager;
         this.mChannel = channel;
         this.mProtocol = mProtocol;
+
 
     }
 
@@ -54,39 +64,48 @@ public class WifiReceiver extends BroadcastReceiver {
     WifiP2pManager.PeerListListener mWifiPeerListListener = new WifiP2pManager.PeerListListener() {
         @Override
         public void onPeersAvailable(WifiP2pDeviceList peers) {
-            Collection<WifiP2pDevice> mDevList = peers.getDeviceList();
+            mDevList = peers.getDeviceList();
             Log.d(TAG, "the device List is: " + mDevList);
-            for (WifiP2pDevice dev : mDevList) {
-                WifiP2pConfig config = new WifiP2pConfig();
-                config.deviceAddress = dev.deviceAddress;
-                Log.d(TAG, "wifi device found " + config.deviceAddress);
-                config.groupOwnerIntent = 0;
-                config.wps.setup = WpsInfo.PBC;
-                connectedDevice = dev;
+            if (mDevList != null && !(mDevList.isEmpty())) {
 
-                mManager.requestConnectionInfo(mChannel, mConnectionInfoListener);
-                //String tmp = info==null ? "null" : info.toString();
-                if (info != null) {
-                    Log.d(TAG, "Info ist: " + info);
-                }
-                if(info == null || !info.groupFormed) {
-                    mManager.connect(mChannel, config, new WifiP2pManager.ActionListener() {
-                        @Override
-                        public void onSuccess() {
-                            Log.d(TAG, "successfully connected with " + connectedDevice);
-                        }
+                for (WifiP2pDevice dev : mDevList){
+                    mProtocol.mWifiP2pManager.stopPeerDiscovery(mProtocol.mChannel, null);
+                    connect(dev);
 
-                        @Override
-                        public void onFailure(int reason) {
-                            Log.d(TAG, "could not connect with " + connectedDevice + "with reason " + reason);
-                        }
-                    });
                 }
             }
 
 
+
         }
     };
+
+    public void connect (WifiP2pDevice dev){
+            WifiP2pConfig config = new WifiP2pConfig();
+            config.deviceAddress = dev.deviceAddress;
+            Log.d(TAG, "wifi device found " + config.deviceAddress);
+            config.groupOwnerIntent = 0;
+            config.wps.setup = WpsInfo.PBC;
+            connectedDevice = dev;
+
+            mManager.requestConnectionInfo(mChannel, mConnectionInfoListener);
+            //String tmp = info==null ? "null" : info.toString();
+            if (info != null) {
+                Log.d(TAG, "Info ist: " + info);
+            }
+
+            mManager.connect(mChannel, config, new WifiP2pManager.ActionListener() {
+                    @Override
+                    public void onSuccess() {
+                        Log.d(TAG, "successfully connected with " + connectedDevice);
+                    }
+
+                    @Override
+                    public void onFailure(int reason) {
+                        Log.d(TAG, "could not connect with " + connectedDevice + "with reason " + reason);
+                    }
+                });
+    }
 
 
     @Override
@@ -110,10 +129,10 @@ public class WifiReceiver extends BroadcastReceiver {
                 mManager.requestPeers(mChannel, mWifiPeerListListener);
             }
         } else if (WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION.equals(action)) {
-
+            opensocket();
 
         } else if (WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION.equals(action))
-            sendMessage();
+
         {
             // Respond to this device's wifi state changing
         }
@@ -121,7 +140,7 @@ public class WifiReceiver extends BroadcastReceiver {
 
     }
 
-    public void sendMessage(){
+    public void opensocket (){
         Log.d(TAG, "Daten werden GANZ AUSSEN gesendet");
         FutureTask futureTask = new FutureTask(new Callable() {
             @Override
@@ -135,10 +154,11 @@ public class WifiReceiver extends BroadcastReceiver {
 
                     mManager.requestConnectionInfo(mChannel, mConnectionInfoListener);
 
-                    String host = connectedDevice.deviceAddress;
+
                     int port = 4242;
                     int len;
-                    Socket socket = new Socket();
+                    WifiReceiver.socket = new Socket();
+                    InetAddress host;
                     //String msg = mWifiProtocol
 
 
@@ -147,16 +167,17 @@ public class WifiReceiver extends BroadcastReceiver {
                          * Create a client socket with the host,
                          * port, and timeout information.
                          */
-                        socket.setReuseAddress(true);
-                        //socket.bind(new InetSocketAddress(port));
-                        socket.connect((new InetSocketAddress(info.groupOwnerAddress, port)), 500);
+                        WifiReceiver.socket.setReuseAddress(true);
+
+                        if (!info.isGroupOwner) {
+                            WifiReceiver.socket.connect((new InetSocketAddress(info.groupOwnerAddress, port)), 500);
+                        }else {
+
+                            WifiReceiver.socket.connect(communicationPartner, 500);
+                        }
 
 
-                        OutputStream outputStream = socket.getOutputStream();
 
-                        mProtocol.sendEnvelope(outputStream, mProtocol.envelope);
-
-                        outputStream.close();
 
                     } catch (IllegalArgumentException e) {
                         e.printStackTrace();
@@ -164,21 +185,7 @@ public class WifiReceiver extends BroadcastReceiver {
                         e.printStackTrace();
                     }
 
-                    /**
-                     * Clean up any open sockets when done
-                     * transferring or if an exception occurred.
-                     */
-                    finally {
-                        if (socket != null) {
-                            if (socket.isConnected()) {
-                                try {
-                                    socket.close();
-                                } catch (IOException e) {
-                                    e.printStackTrace();
-                                }
-                            }
-                        }
-                    }
+
                 }
                 return null;
             }
@@ -186,6 +193,35 @@ public class WifiReceiver extends BroadcastReceiver {
         //todo wieviele Threats?
         ExecutorService executorService = Executors.newFixedThreadPool(2);
         executorService.execute(futureTask);
+    }
+
+    public void sendMessage(){
+        try {
+            OutputStream outputStream = socket.getOutputStream();
+
+            mProtocol.sendEnvelope(outputStream, mProtocol.envelope);
+
+            outputStream.close();
+        }
+        catch (Exception e){
+            e.printStackTrace();
+        }
+
+
+
+
+    }
+    public void closeSocket(){
+        if (socket != null) {
+            if (socket.isConnected()) {
+                try {
+                    socket.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
     }
 
     private final String TAG = "WifiReceiver";

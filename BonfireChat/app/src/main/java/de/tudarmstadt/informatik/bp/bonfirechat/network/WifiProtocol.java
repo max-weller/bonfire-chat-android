@@ -2,8 +2,10 @@ package de.tudarmstadt.informatik.bp.bonfirechat.network;
 
 import android.content.Context;
 import android.content.IntentFilter;
+import android.net.wifi.p2p.WifiP2pDevice;
 import android.net.wifi.p2p.WifiP2pManager;
 import android.os.AsyncTask;
+import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 
@@ -39,6 +41,7 @@ public class WifiProtocol extends SocketProtocol {
     public Envelope envelope;
     public static InetAddress mServerInetAdress;
     public static ServerSocket mServerSocket;
+    private Handler searchLoopHandler;
 
 
     private static final String TAG = "WifiProtocol";
@@ -63,37 +66,59 @@ public class WifiProtocol extends SocketProtocol {
         mIntentFilter.addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION);
         ctx.registerReceiver(mReceiver, mIntentFilter);
         registerWifiReceiverSocket();
+        searchLoopHandler = new Handler();
+        searchDevicesThread.run();
+
+    }
+
+    private Runnable searchDevicesThread = new Runnable() {
+        @Override
+        public void run() {
+            Log.d(TAG, "starting next discovery interval");
+            startdiscovery();
+            searchLoopHandler.postDelayed(searchDevicesThread, 120000);
+        }
+    };
+
+    public void startdiscovery(){
+
+        mWifiP2pManager.discoverPeers(mChannel, new WifiP2pManager.ActionListener() {
+            @Override
+            public void onSuccess() {
+                Log.d(TAG, "Discovering of peers was successful!");
+
+            }
+
+            ;
+
+            @Override
+            public void onFailure(int reason) {
+                Log.d(TAG, "the Reason the discovering of peers failed with reason " + reason);
+
+            }
 
 
+        });
     }
 
     @Override
     public void sendMessage(Envelope e) {
         this.envelope = e;
-
-        if ((WifiReceiver.info == null  || !WifiReceiver.info.groupFormed)){
+        if(WifiReceiver.socket != null) {
+            if (WifiReceiver.socket.isConnected()) {
+                mReceiver.sendMessage();
+            }
+                else {
+                mReceiver.opensocket();
+            }
+            //if ((WifiReceiver.info == null  || !WifiReceiver.info.groupFormed)){
             Log.d(TAG, "Der mWifiManager ist " + mWifiP2pManager);
-            mWifiP2pManager.discoverPeers(mChannel, new WifiP2pManager.ActionListener() {
-                @Override
-                public void onSuccess() {
-                    Log.d(TAG, "Discovering of peers was successful!");
 
-                }
-
-                ;
-
-                @Override
-                public void onFailure(int reason) {
-                    Log.d(TAG, "the Reason the discovering of peers failed with reason " + reason);
-                }
-
-            });
 
         }else {
-            mReceiver.sendMessage();
-
-
+            throw new RuntimeException("socket noch nicht aufgebaut");
         }
+
     }
 
 
@@ -127,14 +152,13 @@ public class WifiProtocol extends SocketProtocol {
 
                         //WifiProtocol.mServerInetAdress = mServerSocket.getInetAddress();
                         Socket client = WifiProtocol.mServerSocket.accept();
-                        InetSocketAddress receiveraddress = (InetSocketAddress) client.getRemoteSocketAddress();
-                        receiveraddress.getAddress();
+                        mReceiver.communicationPartner = (InetSocketAddress) client.getRemoteSocketAddress();
+
                         Log.d(TAG, "Server: connection done");
 
                         InputStream inputstream = client.getInputStream();
-                        WifiProtocol mySocketProtocol = new WifiProtocol(ctx);
 
-                        Envelope e = mySocketProtocol.receiveEnvelope(inputstream);
+                        Envelope e = receiveEnvelope(inputstream);
                         Log.d(TAG, "Die message war: " + e);
                         listener.onMessageReceived(WifiProtocol.this, e);
 
