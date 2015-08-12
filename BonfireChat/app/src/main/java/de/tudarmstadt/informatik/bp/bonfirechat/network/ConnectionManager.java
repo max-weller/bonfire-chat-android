@@ -100,7 +100,7 @@ public class ConnectionManager extends NonStopIntentService {
 
     public static final Class[] registeredProtocols = new Class[]{
             BluetoothProtocol.class,
-            //WifiProtocol.class,
+            WifiProtocol.class,
             GcmProtocol.class };
 
 
