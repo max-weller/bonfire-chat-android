@@ -30,11 +30,12 @@ import java.util.concurrent.FutureTask;
 public class WifiReceiver extends BroadcastReceiver {
     private WifiP2pManager mManager;
     private WifiP2pManager.Channel mChannel;
-    private WifiP2pDevice connectedDevice;
+
     private WifiProtocol mProtocol;
 
     public static WifiP2pInfo info;
     public InetSocketAddress receiverAddress;
+    private final String TAG = "WifiReceiver";
 
 
     public WifiReceiver(WifiP2pManager manager, WifiP2pManager.Channel channel, WifiProtocol mProtocol) {
@@ -45,57 +46,6 @@ public class WifiReceiver extends BroadcastReceiver {
 
     }
 
-    WifiP2pManager.ConnectionInfoListener mConnectionInfoListener = new WifiP2pManager.ConnectionInfoListener() {
-        @Override
-        public void onConnectionInfoAvailable(WifiP2pInfo info) {
-            WifiReceiver.info = info;
-        }
-    };
-
-    WifiP2pManager.PeerListListener mWifiPeerListListener = new WifiP2pManager.PeerListListener() {
-        @Override
-        public void onPeersAvailable(WifiP2pDeviceList peers) {
-            Collection<WifiP2pDevice> mDevList = peers.getDeviceList();
-            Log.d(TAG, "the device List is: " + mDevList);
-            for (WifiP2pDevice dev : mDevList) {
-                WifiP2pConfig config = new WifiP2pConfig();
-                config.deviceAddress = dev.deviceAddress;
-                Log.d(TAG, "wifi device found " + config.deviceAddress);
-                config.groupOwnerIntent = 0;
-                config.wps.setup = WpsInfo.PBC;
-                connectedDevice = dev;
-
-                mManager.requestConnectionInfo(mChannel, mConnectionInfoListener);
-                //String tmp = info==null ? "null" : info.toString();
-                if (info != null) {
-                    Log.d(TAG, "Info ist: " + info);
-                }
-                if(info == null || !info.groupFormed) {
-                    mManager.connect(mChannel, config, new WifiP2pManager.ActionListener() {
-                        @Override
-                        public void onSuccess() {
-                            Log.d(TAG, "successfully connected with " + connectedDevice);
-                        }
-
-                        @Override
-                        public void onFailure(int reason) {
-                            Log.d(TAG, "could not connect with " + connectedDevice.deviceName + " with reason " + reason);
-                        }
-                    });
-                }
-            }
-
-
-        }
-    };
-
-
-    public WifiReceiver() {
-
-    }
-
-
-    @Override
     public void onReceive(Context context, Intent intent) {
         String action = intent.getAction();
         Log.d(TAG, "onReceive wird ausgef�hrt");
@@ -113,22 +63,21 @@ public class WifiReceiver extends BroadcastReceiver {
             Log.d(TAG, "PeerschangedAction");
             if (mManager != null) {
                 Log.d(TAG, "request peers has been done");
-                mManager.requestPeers(mChannel, mWifiPeerListListener);
+                mManager.requestPeers(mChannel, mProtocol.mWifiPeerListListener);
             }
         } else if (WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION.equals(action)) {
-
+            Log.d(TAG, "Die ExtraNetworkInfo ist: " + intent.getParcelableExtra(WifiP2pManager.EXTRA_NETWORK_INFO));
+            //sendMessage();
 
         } else if (WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION.equals(action))
-            sendMessage();
+
         {
             // Respond to this device's wifi state changing
         }
-
-
     }
 
-    public void sendMessage(){
-        Log.d(TAG, "Daten werden GANZ AUSSEN gesendet && info ist :");
+    public void sendMessage() {
+        Log.d(TAG, "Daten werden GANZ AUSSEN gesendet && mmsg ist :" + mProtocol.packet.toString());
         FutureTask futureTask = new FutureTask(new Callable() {
             @Override
             public Object call() throws Exception {
@@ -137,7 +86,7 @@ public class WifiReceiver extends BroadcastReceiver {
                 Log.d(TAG, "Daten werden gesendet");
                 //WifiP2pGroup group = mManager.createGroup(mChannel,null);
 
-                mManager.requestConnectionInfo(mChannel, mConnectionInfoListener);
+                mManager.requestConnectionInfo(mChannel, mProtocol.mConnectionInfoListener);
 
 
                 int port = 4242;
@@ -160,7 +109,7 @@ public class WifiReceiver extends BroadcastReceiver {
                     } else if (!info.isGroupOwner) {
                         socket.connect((new InetSocketAddress(info.groupOwnerAddress, port)), 500);
                     }
-                    if(socket.isConnected()) {
+                    if (socket.isConnected()) {
                         OutputStream outputStream = socket.getOutputStream();
 
                         mProtocol.send(outputStream, mProtocol.packet);
@@ -190,44 +139,13 @@ public class WifiReceiver extends BroadcastReceiver {
                 }
 
 
-            return null;
-        }
+                return null;
+            }
         });
         //todo wieviele Threats?
         ExecutorService executorService = Executors.newFixedThreadPool(8);
         executorService.execute(futureTask);
     }
 
-    private final String TAG = "WifiReceiver";
 
-    public static String getIPFromMac(String MAC) {
-        BufferedReader br = null;
-        try {
-            br = new BufferedReader(new FileReader("/proc/net/arp"));
-            String line;
-            while ((line = br.readLine()) != null) {
-
-                String[] splitted = line.split(" +");
-                if (splitted != null && splitted.length >= 4) {
-                    // Basic sanity check
-                    String device = splitted[5];
-                    if (device.matches(".*p2p-p2p0.*")) {
-                        String mac = splitted[3];
-                        if (mac.matches(MAC)) {
-                            return splitted[0];
-                        }
-                    }
-                }
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        } finally {
-            try {
-                br.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-        return null;
-    }
 }

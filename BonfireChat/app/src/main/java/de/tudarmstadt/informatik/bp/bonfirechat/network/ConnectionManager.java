@@ -138,6 +138,7 @@ public class ConnectionManager extends NonStopIntentService {
                 e.printStackTrace();
             }
             connections.add(p);
+            Log.d(TAG, "Die aktivierten connections sind: " + connections.toString());
         }
         return p;
     }

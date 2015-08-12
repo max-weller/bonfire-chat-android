@@ -2,6 +2,11 @@ package de.tudarmstadt.informatik.bp.bonfirechat.network;
 
 import android.content.Context;
 import android.content.IntentFilter;
+import android.net.wifi.WpsInfo;
+import android.net.wifi.p2p.WifiP2pConfig;
+import android.net.wifi.p2p.WifiP2pDevice;
+import android.net.wifi.p2p.WifiP2pDeviceList;
+import android.net.wifi.p2p.WifiP2pInfo;
 import android.net.wifi.p2p.WifiP2pManager;
 import android.os.Looper;
 import android.util.Log;
@@ -12,6 +17,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -37,14 +43,13 @@ public class WifiProtocol extends SocketProtocol {
     IntentFilter mIntentFilter;
     WifiReceiver mReceiver;
     public Packet packet;
-    public static InetAddress mServerInetAdress;
     public static ServerSocket mServerSocket;
-
-
+    public static WifiP2pInfo info;
     private static final String TAG = "WifiProtocol";
 
 
     public WifiProtocol(Context ctx){
+        super();
         this.ctx = ctx;
         Looper mSrcLooper = ctx.getMainLooper();
         this.mWifiP2pManager= (WifiP2pManager) ctx.getSystemService(Context.WIFI_P2P_SERVICE);
@@ -61,12 +66,75 @@ public class WifiProtocol extends SocketProtocol {
         registerWifiReceiverSocket();
 
 
+        // Benachtbarte Peers discovern, damit wir den OnPeerDiscoveredListener füllen können.
+        mWifiP2pManager.discoverPeers(mChannel, new WifiP2pManager.ActionListener() {
+            @Override
+            public void onSuccess() {
+                Log.d(TAG, "Discovering of peers was successful!");
+            }
+
+            ;
+
+            @Override
+            public void onFailure(int reason) {
+                Log.d(TAG, "the Reason the discovering of peers failed with reason " + reason);
+            }
+        });
     }
+
+    public WifiP2pManager.ConnectionInfoListener mConnectionInfoListener = new WifiP2pManager.ConnectionInfoListener() {
+        @Override
+        public void onConnectionInfoAvailable(WifiP2pInfo info) {
+            WifiReceiver.info = info;
+        }
+    };
+
+    public WifiP2pManager.PeerListListener mWifiPeerListListener = new WifiP2pManager.PeerListListener() {
+        @Override
+        public void onPeersAvailable(WifiP2pDeviceList peers) {
+            Collection<WifiP2pDevice> mDevList = peers.getDeviceList();
+            Log.d(TAG, "the device List is: " + mDevList);
+            for (WifiP2pDevice dev : mDevList) {
+                peerListener.discoveredPeer(WifiProtocol.this, Peer.addressFromString(dev.deviceAddress));
+
+                WifiP2pConfig config = new WifiP2pConfig();
+                config.deviceAddress = dev.deviceAddress;
+                Log.d(TAG, "wifi device found " + config.deviceAddress);
+                config.groupOwnerIntent = 0;
+                config.wps.setup = WpsInfo.PBC;
+
+
+                mWifiP2pManager.requestConnectionInfo(mChannel, mConnectionInfoListener);
+                //String tmp = info==null ? "null" : info.toString();
+                if (info != null) {
+                    Log.d(TAG, "Info ist: " + info);
+                }
+                if(info == null || !info.groupFormed) {
+                    mWifiP2pManager.connect(mChannel, config, new WifiP2pManager.ActionListener() {
+                        @Override
+                        public void onSuccess() {
+                            Log.d(TAG, "successfully connected ");
+                        }
+
+                        @Override
+                        public void onFailure(int reason) {
+                            Log.d(TAG, "could not connect with reason " + reason);
+                        }
+                    });
+                }
+            }
+
+
+        }
+    };
+
+
 
     @Override
     public void sendPacket(Packet packet, Peer peer) {
         // TODO: send packet only to specified recipients
         this.packet = packet;
+        Log.d(TAG, "WifiReceiver.info ist " + WifiReceiver.info);
 
         if ((WifiReceiver.info == null  || !WifiReceiver.info.groupFormed)){
             Log.d(TAG, "Der mWifiManager ist " + mWifiP2pManager);
@@ -88,6 +156,7 @@ public class WifiProtocol extends SocketProtocol {
             mReceiver.sendMessage();
 
         }else {
+            Log.d(TAG, "Message wird gesendet ohne discover peers");
             mReceiver.sendMessage();
 
 
