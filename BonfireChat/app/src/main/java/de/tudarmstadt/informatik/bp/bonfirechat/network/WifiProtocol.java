@@ -8,6 +8,7 @@ import android.net.wifi.p2p.WifiP2pDevice;
 import android.net.wifi.p2p.WifiP2pDeviceList;
 import android.net.wifi.p2p.WifiP2pInfo;
 import android.net.wifi.p2p.WifiP2pManager;
+import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 
@@ -42,10 +43,13 @@ public class WifiProtocol extends SocketProtocol {
     WifiP2pManager.Channel mChannel;
     IntentFilter mIntentFilter;
     WifiReceiver mReceiver;
-    public Packet packet;
+
     public static ServerSocket mServerSocket;
     public static WifiP2pInfo info;
     private static final String TAG = "WifiProtocol";
+    private Handler searchLoopHandler;
+    public static WifiP2pDevice myDevice;
+
 
 
     public WifiProtocol(Context ctx){
@@ -63,18 +67,31 @@ public class WifiProtocol extends SocketProtocol {
         mIntentFilter.addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION);
 
         ctx.registerReceiver(mReceiver, mIntentFilter);
-        registerWifiReceiverSocket();
+        registerWifiReceiverSocket(this);
+        searchLoopHandler = new Handler();
 
 
         // Benachtbarte Peers discovern, damit wir den OnPeerDiscoveredListener füllen können.
+        searchDevicesThread.start();
+    }
+
+
+    private Thread searchDevicesThread = new Thread() {
+        @Override
+        public void run() {
+            ctx.registerReceiver(mReceiver, mIntentFilter);
+            Log.d(TAG, "starting next discovery interval");
+            searchDevices();
+            searchLoopHandler.postDelayed(searchDevicesThread, 120000);
+        }
+    };
+
+    public void searchDevices() {
         mWifiP2pManager.discoverPeers(mChannel, new WifiP2pManager.ActionListener() {
             @Override
             public void onSuccess() {
                 Log.d(TAG, "Discovering of peers was successful!");
-            }
-
-            ;
-
+            };
             @Override
             public void onFailure(int reason) {
                 Log.d(TAG, "the Reason the discovering of peers failed with reason " + reason);
@@ -86,6 +103,7 @@ public class WifiProtocol extends SocketProtocol {
         @Override
         public void onConnectionInfoAvailable(WifiP2pInfo info) {
             WifiReceiver.info = info;
+            WifiProtocol.info = info;
         }
     };
 
@@ -133,7 +151,7 @@ public class WifiProtocol extends SocketProtocol {
     @Override
     public void sendPacket(Packet packet, Peer peer) {
         // TODO: send packet only to specified recipients
-        this.packet = packet;
+
         Log.d(TAG, "WifiReceiver.info ist " + WifiReceiver.info);
 
         if ((WifiReceiver.info == null  || !WifiReceiver.info.groupFormed)){
@@ -153,11 +171,11 @@ public class WifiProtocol extends SocketProtocol {
                 }
 
             });
-            mReceiver.sendMessage();
+            mReceiver.sendMessage(packet);
 
         }else {
             Log.d(TAG, "Message wird gesendet ohne discover peers");
-            mReceiver.sendMessage();
+            mReceiver.sendMessage(packet);
 
 
         }
@@ -166,7 +184,7 @@ public class WifiProtocol extends SocketProtocol {
 
 
 
-    private void registerWifiReceiverSocket() {
+    private void registerWifiReceiverSocket(final WifiProtocol mWifiProtocol) {
 
 
         FutureTask futureTask = new FutureTask(new Callable() {
@@ -196,13 +214,15 @@ public class WifiProtocol extends SocketProtocol {
                         Socket client = WifiProtocol.mServerSocket.accept();
                         mReceiver.receiverAddress = (InetSocketAddress) client.getRemoteSocketAddress();
 
+
                         Log.d(TAG, "Server: connection done");
 
                         InputStream inputstream = client.getInputStream();
-                        WifiProtocol mySocketProtocol = new WifiProtocol(ctx);
+
                         Packet p;
 
-                        p = mySocketProtocol.receive(inputstream);
+                        p = mWifiProtocol.receive(inputstream);
+                        p.addPathNode(p.MacAddress);
                         Log.d(TAG, "Die message war: " + p);
                         Log.d(TAG,"Der Empfänger ist " +  CryptoHelper.toBase64(p.recipientPublicKey));
 

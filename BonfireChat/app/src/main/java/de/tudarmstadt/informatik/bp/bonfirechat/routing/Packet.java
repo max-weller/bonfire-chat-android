@@ -40,6 +40,7 @@ public abstract class Packet implements Serializable {
     public static final int ROUTING_MODE_NONE = 0;
     public static final int ROUTING_MODE_FLOODING = 1;
     public static final int ROUTING_MODE_DSR = 2;
+    public byte[] MacAddress= null;
 
     public long getTimeSent() {
         return timeSent;
@@ -119,3 +120,5 @@ public abstract class Packet implements Serializable {
         return "Packet(" + getType().toString() + ", " + uuid.toString() + ", routing=" + String.valueOf(routingMode) + ", hopCount=" + String.valueOf(path.size()) + ")";
     }
 }
+
+

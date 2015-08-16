@@ -3,6 +3,7 @@ package de.tudarmstadt.informatik.bp.bonfirechat.network;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.net.wifi.WifiManager;
 import android.net.wifi.WpsInfo;
 import android.net.wifi.p2p.WifiP2pConfig;
 import android.net.wifi.p2p.WifiP2pDevice;
@@ -23,6 +24,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.FutureTask;
 
+import de.tudarmstadt.informatik.bp.bonfirechat.routing.Packet;
+
 
 /**
  * Created by Simon on 22.05.2015.
@@ -39,7 +42,7 @@ public class WifiReceiver extends BroadcastReceiver {
 
 
     public WifiReceiver(WifiP2pManager manager, WifiP2pManager.Channel channel, WifiProtocol mProtocol) {
-        super();
+
         this.mManager = manager;
         this.mChannel = channel;
         this.mProtocol = mProtocol;
@@ -47,8 +50,9 @@ public class WifiReceiver extends BroadcastReceiver {
     }
 
     public void onReceive(Context context, Intent intent) {
+        WifiProtocol.myDevice = intent.getParcelableExtra(WifiP2pManager.EXTRA_WIFI_P2P_DEVICE);
         String action = intent.getAction();
-        Log.d(TAG, "onReceive wird ausgef�hrt");
+        Log.d(TAG, "onReceive wird ausgeführt");
         if (WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION.equals(action)) {
             // Check to see if Wi-Fi is enabled
             int state = intent.getIntExtra(WifiP2pManager.EXTRA_WIFI_STATE, -1);
@@ -76,8 +80,8 @@ public class WifiReceiver extends BroadcastReceiver {
         }
     }
 
-    public void sendMessage() {
-        Log.d(TAG, "Daten werden GANZ AUSSEN gesendet && mmsg ist :" + mProtocol.packet.toString());
+    public void sendMessage(final Packet packet) {
+        Log.d(TAG, "Daten werden GANZ AUSSEN gesendet && mmsg ist :" + packet.toString());
         FutureTask futureTask = new FutureTask(new Callable() {
             @Override
             public Object call() throws Exception {
@@ -104,15 +108,16 @@ public class WifiReceiver extends BroadcastReceiver {
                     //socket.bind(new InetSocketAddress(port));
                     if (receiverAddress != null) {
                         Log.d(TAG, "ReceiverIp ist : " + receiverAddress.getAddress());
-                        socket.connect(new InetSocketAddress(receiverAddress.getAddress(), port), 500);
+                        socket.connect(new InetSocketAddress(receiverAddress.getAddress(), port), 5000);
 
                     } else if (!info.isGroupOwner) {
-                        socket.connect((new InetSocketAddress(info.groupOwnerAddress, port)), 500);
+                        socket.connect((new InetSocketAddress(info.groupOwnerAddress, port)), 5000);
                     }
                     if (socket.isConnected()) {
                         OutputStream outputStream = socket.getOutputStream();
+                        packet.MacAddress = Peer.addressFromString(WifiProtocol.myDevice.deviceAddress);
 
-                        mProtocol.send(outputStream, mProtocol.packet);
+                        mProtocol.send(outputStream, packet);
 
                         outputStream.close();
                     }
