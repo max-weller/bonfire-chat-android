@@ -42,36 +42,21 @@ public class ConversationsAdapter extends ArrayAdapter<Conversation> {
             itemSelected = new boolean[this.getCount()];
     }
 
-    class ViewHolder {
-        ImageView icon;
-        TextView name;
-        TextView lastMessage;
-        TextView lastMessageDate;
-    }
-
     @Override
     public View getView(int position, View convertView, ViewGroup parent) {
-        ViewHolder v;
-        if (convertView == null) {
-            v = new ViewHolder();
-            LayoutInflater inflater = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-            convertView = inflater.inflate(R.layout.conversations_layout, parent, false);
-            v.icon = (ImageView) convertView.findViewById(R.id.icon);
-            v.name = (TextView) convertView.findViewById(R.id.name);
-            v.lastMessage = (TextView) convertView.findViewById(R.id.lastMessage);
-            v.lastMessageDate = (TextView) convertView.findViewById(R.id.lastMessageDate);
-        } else {
-            v = (ViewHolder) convertView.getTag();
-        }
+        LayoutInflater inflater = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+        View rowView = inflater.inflate(R.layout.conversations_layout, parent, false);
+        TextView name = (TextView) rowView.findViewById(R.id.name);
+        TextView lastMessage = (TextView) rowView.findViewById(R.id.lastMessage);
+        ImageView icon = (ImageView) rowView.findViewById(R.id.icon);
 
-        v.icon.setImageResource(R.mipmap.ic_launcher);
-        v.name.setText(getItem(position).getName());
-        v.lastMessage.setText(getItem(position).getLastMessage());
-        v.lastMessageDate.setText(getItem(position).getLastMessageDate());
+        name.setText(getItem(position).getName());
+        lastMessage.setText(getItem(position).getLastMessage());
+        icon.setImageResource(R.mipmap.ic_launcher);
         Log.d("ConversationsAdapter", "getview position=" + position + "   selected=" + itemSelected[position]);
-        convertView.setSelected(itemSelected[position]);
-        convertView.setBackgroundColor(itemSelected[position] ? Color.parseColor("#ffbbff") : Color.TRANSPARENT);
+        rowView.setSelected(itemSelected[position]);
+        rowView.setBackgroundColor(itemSelected[position] ? Color.parseColor("#ffbbff") : Color.TRANSPARENT);
 
-        return convertView;
+        return rowView;
     }
 }
