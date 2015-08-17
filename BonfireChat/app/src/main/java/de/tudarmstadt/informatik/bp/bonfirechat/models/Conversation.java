@@ -6,8 +6,6 @@ import android.database.Cursor;
 import java.util.ArrayList;
 import java.util.List;
 
-import de.tudarmstadt.informatik.bp.bonfirechat.helper.DateHelper;
-
 /**
  * Created by johannes on 05.05.15.
  */
@@ -44,12 +42,6 @@ public class Conversation {
     public String getLastMessage() {
         if(messages.size() > 0)
             return messages.get(messages.size() - 1).toString();
-        else
-            return "";
-    }
-    public String getLastMessageDate() {
-        if(messages.size() > 0)
-            return DateHelper.formatTimeOrDate(messages.get(messages.size() - 1).sentTime);
         else
             return "";
     }
