@@ -17,6 +17,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Collection;
 import java.util.concurrent.Callable;
@@ -71,7 +72,10 @@ public class WifiReceiver extends BroadcastReceiver {
             }
         } else if (WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION.equals(action)) {
             Log.d(TAG, "Die ExtraNetworkInfo ist: " + intent.getParcelableExtra(WifiP2pManager.EXTRA_NETWORK_INFO));
-            //sendMessage();
+            mManager.requestConnectionInfo(mChannel, mProtocol.mConnectionInfoListener);
+            if(info != null && !info.isGroupOwner){
+                openSenderSocket();
+            }
 
         } else if (WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION.equals(action))
 
@@ -80,45 +84,85 @@ public class WifiReceiver extends BroadcastReceiver {
         }
     }
 
+    public void openSenderSocket() {
+        Log.d(TAG, "Server Socket wird geöffnet");
+        mManager.requestConnectionInfo(mChannel, mProtocol.mConnectionInfoListener);
+        int port = 4242;
+        Socket socket = new Socket();
+        try {
+            /**
+             * Create a client socket with the host,
+             * port, and timeout information.
+             */
+            socket.setReuseAddress(true);
+
+
+            if (!info.isGroupOwner) {
+                socket.connect((new InetSocketAddress(info.groupOwnerAddress, port)), 5000);
+            } else {
+                if (receiverAddress != null) {
+                    Log.d(TAG, "ReceiverIp ist : " + receiverAddress.getAddress());
+                    socket.connect(new InetSocketAddress(receiverAddress.getAddress(), port), 5000);
+                } else {
+                    while (receiverAddress == null) {
+                        Thread.sleep(1000);
+                        Log.d(TAG, "waiting for an ip Adress to send to");
+                    }
+                    socket.connect(new InetSocketAddress(receiverAddress.getAddress(), port), 5000);
+                    Log.d(TAG, "ServerSocket wurde geöffnet");
+                }
+
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+
     public void sendMessage(final Packet packet) {
-        Log.d(TAG, "Daten werden GANZ AUSSEN gesendet && mmsg ist :" + packet.toString());
+
         FutureTask futureTask = new FutureTask(new Callable() {
             @Override
             public Object call() throws Exception {
-                Log.d(TAG, "Daten werden au�en gesendet ");
-
-                Log.d(TAG, "Daten werden gesendet");
-                //WifiP2pGroup group = mManager.createGroup(mChannel,null);
-
                 mManager.requestConnectionInfo(mChannel, mProtocol.mConnectionInfoListener);
-
-
                 int port = 4242;
-                int len;
                 Socket socket = new Socket();
-                //String msg = mWifiProtocol
-
-
                 try {
                     /**
                      * Create a client socket with the host,
                      * port, and timeout information.
                      */
                     socket.setReuseAddress(true);
-                    //socket.bind(new InetSocketAddress(port));
-                    if (receiverAddress != null) {
-                        Log.d(TAG, "ReceiverIp ist : " + receiverAddress.getAddress());
-                        socket.connect(new InetSocketAddress(receiverAddress.getAddress(), port), 5000);
 
-                    } else if (!info.isGroupOwner) {
+
+                    if (!info.isGroupOwner) {
                         socket.connect((new InetSocketAddress(info.groupOwnerAddress, port)), 5000);
                     }
+                    else{
+                        if(receiverAddress != null) {
+                        Log.d(TAG, "ReceiverIp ist : " + receiverAddress.getAddress());
+                        socket.connect(new InetSocketAddress(receiverAddress.getAddress(), port), 5000);}
+                        else {
+                            while (receiverAddress == null){
+                                Thread.sleep(1000);
+                                Log.d(TAG, "waiting for an ip Adress to send to");
+                                }
+                            socket.connect(new InetSocketAddress(receiverAddress.getAddress(), port), 5000);
+
+                        }
+
+                    }
+                    //the Server threat might be racing with the client threat. To assure the server socket is open:
+                    Thread.sleep(1000);
+
+
                     if (socket.isConnected()) {
+                        Log.d(TAG, "Device is connected and is now sending data.");
                         OutputStream outputStream = socket.getOutputStream();
                         packet.MacAddress = Peer.addressFromString(WifiProtocol.myDevice.deviceAddress);
 
                         mProtocol.send(outputStream, packet);
-
+                        Log.d(TAG, "Daten wurden vollständing gesendet");
                         outputStream.close();
                     }
 

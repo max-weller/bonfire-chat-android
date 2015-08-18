@@ -71,8 +71,8 @@ public class WifiProtocol extends SocketProtocol {
         searchLoopHandler = new Handler();
 
 
-        // Benachtbarte Peers discovern, damit wir den OnPeerDiscoveredListener füllen können.
-        searchDevicesThread.start();
+        //Benachtbarte Peers discovern, damit wir den OnPeerDiscoveredListener füllen können.
+         searchDevicesThread.start();
     }
 
 
@@ -128,17 +128,18 @@ public class WifiProtocol extends SocketProtocol {
                     Log.d(TAG, "Info ist: " + info);
                 }
                 if(info == null || !info.groupFormed) {
-                    mWifiP2pManager.connect(mChannel, config, new WifiP2pManager.ActionListener() {
+                   /* mWifiP2pManager.connect(mChannel, config, new WifiP2pManager.ActionListener() {
                         @Override
                         public void onSuccess() {
                             Log.d(TAG, "successfully connected ");
+
                         }
 
                         @Override
                         public void onFailure(int reason) {
                             Log.d(TAG, "could not connect with reason " + reason);
                         }
-                    });
+                    });*/
                 }
             }
 
@@ -193,27 +194,18 @@ public class WifiProtocol extends SocketProtocol {
             public Object call() throws Exception {
                 Log.d(TAG, "do in Backround wird ausgefuehrt");
                 try {
-
-
-
                     if (WifiProtocol.mServerSocket==null){
                         WifiProtocol.mServerSocket = new ServerSocket(4242);
                     }
-
-
                     Log.d(TAG, "Server: Socket opened");
-
                     /**
                      * Create a server socket and wait for client connections. This
                      * call blocks until a connection is accepted from a client
-                     */
-
-
+                    */
 
                         //WifiProtocol.mServerInetAdress = mServerSocket.getInetAddress();
                         Socket client = WifiProtocol.mServerSocket.accept();
                         mReceiver.receiverAddress = (InetSocketAddress) client.getRemoteSocketAddress();
-
 
                         Log.d(TAG, "Server: connection done");
 
@@ -227,8 +219,6 @@ public class WifiProtocol extends SocketProtocol {
                         Log.d(TAG,"Der Empfänger ist " +  CryptoHelper.toBase64(p.recipientPublicKey));
 
                         packetListener.onPacketReceived(WifiProtocol.this, p);
-
-
 
                     //mServerSocket.close();
                 } catch (IOException e) {
