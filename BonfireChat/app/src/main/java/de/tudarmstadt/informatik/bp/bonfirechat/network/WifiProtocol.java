@@ -49,7 +49,7 @@ public class WifiProtocol extends SocketProtocol {
     private static final String TAG = "WifiProtocol";
     private Handler searchLoopHandler;
     public static WifiP2pDevice myDevice;
-
+    public static byte[] myDeviceMac;
 
 
     public WifiProtocol(Context ctx){
@@ -66,8 +66,10 @@ public class WifiProtocol extends SocketProtocol {
         mIntentFilter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION);
         mIntentFilter.addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION);
 
+
         ctx.registerReceiver(mReceiver, mIntentFilter);
         registerWifiReceiverSocket(this);
+
         searchLoopHandler = new Handler();
 
 
@@ -128,7 +130,7 @@ public class WifiProtocol extends SocketProtocol {
                     Log.d(TAG, "Info ist: " + info);
                 }
                 if(info == null || !info.groupFormed) {
-                   /* mWifiP2pManager.connect(mChannel, config, new WifiP2pManager.ActionListener() {
+                    mWifiP2pManager.connect(mChannel, config, new WifiP2pManager.ActionListener() {
                         @Override
                         public void onSuccess() {
                             Log.d(TAG, "successfully connected ");
@@ -139,7 +141,7 @@ public class WifiProtocol extends SocketProtocol {
                         public void onFailure(int reason) {
                             Log.d(TAG, "could not connect with reason " + reason);
                         }
-                    });*/
+                    });
                 }
             }
 
@@ -224,6 +226,7 @@ public class WifiProtocol extends SocketProtocol {
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
+                registerWifiReceiverSocket(mWifiProtocol);
                 return null;
             }
         });

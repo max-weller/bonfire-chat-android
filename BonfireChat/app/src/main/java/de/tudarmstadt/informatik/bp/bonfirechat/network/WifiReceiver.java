@@ -51,7 +51,6 @@ public class WifiReceiver extends BroadcastReceiver {
     }
 
     public void onReceive(Context context, Intent intent) {
-        WifiProtocol.myDevice = intent.getParcelableExtra(WifiP2pManager.EXTRA_WIFI_P2P_DEVICE);
         String action = intent.getAction();
         Log.d(TAG, "onReceive wird ausgeführt");
         if (WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION.equals(action)) {
@@ -81,41 +80,54 @@ public class WifiReceiver extends BroadcastReceiver {
 
         {
             // Respond to this device's wifi state changing
+            WifiProtocol.myDevice  = (WifiP2pDevice) intent
+                    .getParcelableExtra(WifiP2pManager.EXTRA_WIFI_P2P_DEVICE);
+
+            Log.d(TAG, "Device WiFi P2p MAC Address: " + WifiProtocol.myDevice.deviceAddress);
+
         }
     }
 
     public void openSenderSocket() {
-        Log.d(TAG, "Server Socket wird geöffnet");
-        mManager.requestConnectionInfo(mChannel, mProtocol.mConnectionInfoListener);
-        int port = 4242;
-        Socket socket = new Socket();
-        try {
-            /**
-             * Create a client socket with the host,
-             * port, and timeout information.
-             */
-            socket.setReuseAddress(true);
+
+        FutureTask futureTask = new FutureTask(new Callable() {
+            @Override
+            public Object call() throws Exception {
+                Log.d(TAG, "Server Socket wird geöffnet");
+                mManager.requestConnectionInfo(mChannel, mProtocol.mConnectionInfoListener);
+                int port = 4242;
+                Socket socket = new Socket();
+                try {
+                    /**
+                     * Create a client socket with the host,
+                     * port, and timeout information.
+                     */
+                    socket.setReuseAddress(true);
 
 
-            if (!info.isGroupOwner) {
-                socket.connect((new InetSocketAddress(info.groupOwnerAddress, port)), 5000);
-            } else {
-                if (receiverAddress != null) {
-                    Log.d(TAG, "ReceiverIp ist : " + receiverAddress.getAddress());
-                    socket.connect(new InetSocketAddress(receiverAddress.getAddress(), port), 5000);
-                } else {
-                    while (receiverAddress == null) {
-                        Thread.sleep(1000);
-                        Log.d(TAG, "waiting for an ip Adress to send to");
+                    if (!info.isGroupOwner) {
+                        socket.connect((new InetSocketAddress(info.groupOwnerAddress, port)), 5000);
+                    } else {
+                        if (receiverAddress != null) {
+                            Log.d(TAG, "ReceiverIp ist : " + receiverAddress.getAddress());
+                            socket.connect(new InetSocketAddress(receiverAddress.getAddress(), port), 5000);
+                        } else {
+                            while (receiverAddress == null) {
+                                Thread.sleep(1000);
+                                Log.d(TAG, "waiting for an ip Adress to send to");
+                            }
+                            socket.connect(new InetSocketAddress(receiverAddress.getAddress(), port), 5000);
+                            Log.d(TAG, "ServerSocket wurde geöffnet");
+                        }
+
                     }
-                    socket.connect(new InetSocketAddress(receiverAddress.getAddress(), port), 5000);
-                    Log.d(TAG, "ServerSocket wurde geöffnet");
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
-
+                return null;
             }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        });
+
     }
 
 
@@ -158,8 +170,11 @@ public class WifiReceiver extends BroadcastReceiver {
 
                     if (socket.isConnected()) {
                         Log.d(TAG, "Device is connected and is now sending data.");
+
+                        packet.MacAddress =Peer.addressFromString(WifiProtocol.myDevice.deviceAddress);
+                        Log.d(TAG, "creating outputstream");
                         OutputStream outputStream = socket.getOutputStream();
-                        packet.MacAddress = Peer.addressFromString(WifiProtocol.myDevice.deviceAddress);
+
 
                         mProtocol.send(outputStream, packet);
                         Log.d(TAG, "Daten wurden vollständing gesendet");
