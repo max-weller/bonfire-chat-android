@@ -196,19 +196,28 @@ public class WifiProtocol extends SocketProtocol {
             });
             try {
                 connect(peer);
+                mReceiver.openSenderSocket();
             }catch(Exception e){
                 e.printStackTrace();
+            }finally {
+                searchDevices();
             }
             mReceiver.sendMessage(packet);
+            mWifiP2pManager.cancelConnect(mChannel, null);
 
         }else {
             Log.d(TAG, "Message wird gesendet ohne discover peers");
             try {
                 connect(peer);
+                mReceiver.openSenderSocket();
             }catch(Exception e){
                 e.printStackTrace();
             }
+            finally {
+                searchDevices();
+            }
             mReceiver.sendMessage(packet);
+            mWifiP2pManager.cancelConnect(mChannel, null);
 
 
         }
@@ -238,6 +247,7 @@ public class WifiProtocol extends SocketProtocol {
                         //WifiProtocol.mServerInetAdress = mServerSocket.getInetAddress();
                         Socket client = WifiProtocol.mServerSocket.accept();
                         mReceiver.receiverAddress = (InetSocketAddress) client.getRemoteSocketAddress();
+
 
                         Log.d(TAG, "Server: connection done");
 
