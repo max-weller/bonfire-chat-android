@@ -72,9 +72,9 @@ public class WifiReceiver extends BroadcastReceiver {
         } else if (WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION.equals(action)) {
             Log.d(TAG, "Die ExtraNetworkInfo ist: " + intent.getParcelableExtra(WifiP2pManager.EXTRA_NETWORK_INFO));
             mManager.requestConnectionInfo(mChannel, mProtocol.mConnectionInfoListener);
-            if(info != null && !info.isGroupOwner){
+            //if(info != null && !info.isGroupOwner){
                 openSenderSocket();
-            }
+
 
         } else if (WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION.equals(action))
 
