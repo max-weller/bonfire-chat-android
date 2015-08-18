@@ -1,5 +1,6 @@
 package de.tudarmstadt.informatik.bp.bonfirechat.network;
 
+import android.bluetooth.BluetoothClass;
 import android.content.Context;
 import android.content.IntentFilter;
 import android.net.wifi.WpsInfo;
@@ -20,6 +21,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Collection;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -50,6 +52,8 @@ public class WifiProtocol extends SocketProtocol {
     private Handler searchLoopHandler;
     public static WifiP2pDevice myDevice;
     public static byte[] myDeviceMac;
+
+    public Collection<WifiP2pDevice> mDevList;
 
 
     public WifiProtocol(Context ctx){
@@ -112,43 +116,59 @@ public class WifiProtocol extends SocketProtocol {
     public WifiP2pManager.PeerListListener mWifiPeerListListener = new WifiP2pManager.PeerListListener() {
         @Override
         public void onPeersAvailable(WifiP2pDeviceList peers) {
-            Collection<WifiP2pDevice> mDevList = peers.getDeviceList();
+            mDevList = peers.getDeviceList();
             Log.d(TAG, "the device List is: " + mDevList);
             for (WifiP2pDevice dev : mDevList) {
                 peerListener.discoveredPeer(WifiProtocol.this, Peer.addressFromString(dev.deviceAddress));
 
-                WifiP2pConfig config = new WifiP2pConfig();
-                config.deviceAddress = dev.deviceAddress;
-                Log.d(TAG, "wifi device found " + config.deviceAddress);
-                config.groupOwnerIntent = 0;
-                config.wps.setup = WpsInfo.PBC;
 
-
-                mWifiP2pManager.requestConnectionInfo(mChannel, mConnectionInfoListener);
-                //String tmp = info==null ? "null" : info.toString();
-                if (info != null) {
-                    Log.d(TAG, "Info ist: " + info);
-                }
-                if(info == null || !info.groupFormed) {
-                    mWifiP2pManager.connect(mChannel, config, new WifiP2pManager.ActionListener() {
-                        @Override
-                        public void onSuccess() {
-                            Log.d(TAG, "successfully connected ");
-
-                        }
-
-                        @Override
-                        public void onFailure(int reason) {
-                            Log.d(TAG, "could not connect with reason " + reason);
-                        }
-                    });
-                }
             }
-
-
         }
     };
 
+
+    public void connect(Peer peer){
+
+        WifiP2pDevice dev = null;
+        for(WifiP2pDevice d : mDevList){
+            if(peer.addressFromString(d.deviceAddress).equals(peer.getAddress())){
+                dev = d;
+            }
+        }
+        if(dev == null){
+            throw new NoSuchElementException("Cant connect with device as it is not in range");
+        }
+
+        WifiP2pConfig config = new WifiP2pConfig();
+        config.deviceAddress = dev.deviceAddress;
+        Log.d(TAG, "wifi device found " + config.deviceAddress);
+        config.groupOwnerIntent = 0;
+        config.wps.setup = WpsInfo.PBC;
+
+
+        mWifiP2pManager.requestConnectionInfo(mChannel, mConnectionInfoListener);
+        //String tmp = info==null ? "null" : info.toString();
+        if (info != null) {
+            Log.d(TAG, "Info ist: " + info);
+        }
+
+        //if(info == null || !info.groupFormed) {
+        mWifiP2pManager.connect(mChannel, config, new WifiP2pManager.ActionListener() {
+            @Override
+            public void onSuccess() {
+                Log.d(TAG, "successfully connected ");
+
+            }
+
+            @Override
+            public void onFailure(int reason) {
+                Log.d(TAG, "could not connect with reason " + reason);
+            }
+        });
+        //}
+
+
+    }
 
 
     @Override
@@ -174,10 +194,20 @@ public class WifiProtocol extends SocketProtocol {
                 }
 
             });
+            try {
+                connect(peer);
+            }catch(Exception e){
+                e.printStackTrace();
+            }
             mReceiver.sendMessage(packet);
 
         }else {
             Log.d(TAG, "Message wird gesendet ohne discover peers");
+            try {
+                connect(peer);
+            }catch(Exception e){
+                e.printStackTrace();
+            }
             mReceiver.sendMessage(packet);
 
 
